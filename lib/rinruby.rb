@@ -465,8 +465,10 @@ def initialize(*args)
     raise EngineClosed if @engine.closed?
     if complete?(string)
       result = pull_engine(string)
-      if ( ! singletons ) && ( result.length == 1 ) && ( result.class != String )
+      if result && ( ! singletons ) && ( result.length == 1 ) && ( result.class != String )
         result = result[0]
+      elsif !result
+        raise RuntimeError, "Pull result is empty (variable not bound in R or error within eval)"
       end
       result
     else
@@ -680,7 +682,14 @@ def initialize(*args)
     @socket.read(4,buffer)
     type = to_signed_int(buffer.unpack('N')[0].to_i)
     if ( type == RinRuby_Type_Unknown )
-      raise "Unsupported data type on R's end"
+      obj_class = pull "class(#{string})"
+      case obj_class
+      when "data.frame"
+        result = pull "as.matrix(#{string})"
+        return result
+      else
+        raise "Unsupported data type on R's end"
+      end
     end
     if ( type == RinRuby_Type_NotFound )
       return nil
